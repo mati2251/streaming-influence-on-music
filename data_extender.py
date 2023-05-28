@@ -16,50 +16,64 @@ CLIENT_SECRET = env_vars.get('SPOTIFY_APP_SECRET')
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=CLIENT_ID,
                                                            client_secret=CLIENT_SECRET))
 
-input_file = 'charts.csv'
-output_file = 'charts_extended.csv'
+input_file = 'charts_top_10.csv'
+output_file = f'charts_extended/charts_top_10_extended{start}-{end}.csv'
+
 
 with open(input_file, 'r') as csv_input_file:
     reader = csv.reader(csv_input_file)
     rows = list(reader)
 
-rows[0].extend(['acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'speechiness', 'tempo', 'genre'])
+newRows = []
 
-for i, row in enumerate(rows[1:], start=start):
-    print(i, row[2])
+for i, row in enumerate(rows[start:], start=start):
+    print(i)
     artist = row[3]
     if('Featuring' in artist):
-        artist = row[3].split('Featuring')[0]
+        artist = artist.split('Featuring')[0]
     if('&' in artist):
-        artist = row[3].split('&')[0]
+        artist = artist.split('&')[0]
     if(' x ' in artist):
-        artist = row[3].split(' x ')[0]
+        artist = artist.split(' x ')[0]
     if('(' in artist):
-        artist = row[3].split(' (')[0]
+        artist = artist.split(' (')[0]
     track = row[2]
-    result = sp.search(q=f"artist:{artist} track:{track}", type="track", limit=1)
-    if(result['tracks']['total'] == 0):
-        result = sp.search(q=f"track:{track}", type="track", limit=1)
-    if(result['tracks']['total'] != 0):
-        track_id = result['tracks']['items'][0]['id']
-        audio_features = sp.audio_features(tracks=[track_id])[0]
-        row.append(audio_features['acousticness'])
-        row.append(audio_features['danceability'])
-        row.append(audio_features['duration_ms'])
-        row.append(audio_features['energy'])
-        row.append(audio_features['instrumentalness'])
-        row.append(audio_features['liveness'])
-        row.append(audio_features['speechiness'])
-        row.append(audio_features['tempo'])
-        artists = result['tracks']['items'][0]['artists']
-        genre = []
-        for artist in artists:
-            genre.extend(sp.artist(artist['id'])['genres'])
-        row.append(';'.join(genre))
-    if(i==end):
+    if('/' in track):
+        track = track.split('/')[0]
+    if('(' in track):
+        track = track.split('(')[0]
+
+    try:
+        result = sp.search(q=f"artist:{artist} track:{track}", type="track", limit=1)
+        if(result['tracks']['total'] == 0):
+            result = sp.search(q=f"track:{track}", type="track", limit=1)
+        if(result['tracks']['total'] == 0 and '\'' in track):
+            track = track.replace('\'', '')
+            result = sp.search(q=f"artist:{artist} track:{track}", type="track", limit=1)
+        newRows.append(row)
+        newRows[-1].append(result['tracks']['items'][0]['id'])
+        
+        # track_id = result['tracks']['items'][0]['id']
+        # audio_features = sp.audio_features(tracks=[track_id])[0]
+        # newRows[-1].append(audio_features['acousticness'])
+        # newRows[-1].append(audio_features['danceability'])
+        # newRows[-1].append(audio_features['duration_ms'])
+        # newRows[-1].append(audio_features['energy'])
+        # newRows[-1].append(audio_features['instrumentalness'])
+        # newRows[-1].append(audio_features['liveness'])
+        # newRows[-1].append(audio_features['speechiness'])
+        # newRows[-1].append(audio_features['tempo'])
+    except:
+        print(f"Error at {i}")
+        output_file = f'charts_extended/charts_top_10_extended{start}-{i}.csv'
+        print(row)
         break
+
+    if(i>=end):
+        break
+print("DONE")
 
 with open(output_file, 'w', newline='') as csv_output_file:
     writer = csv.writer(csv_output_file)
-    writer.writerows(rows[start:end])
+    writer.writerows(newRows)
     
